@@ -37,11 +37,14 @@ class SplicePredictionTrack extends TrackBase {
     constructor(config, browser) {
         super(config, browser)
 
-        //this.featureType = "numeric"
+        this.rawOrDelta = config.rawOrDelta || "delta"
+
         this.paintAxis = this.paintAxisCustom
-        //this.graphType = "points"
-        this.dataRange = {
+        this.dataRange = this.rawOrDelta === "delta" ? {
             min: -1,
+            max: 1,
+        } : {
+            min: 0,
             max: 1,
         }
     }
@@ -53,17 +56,25 @@ class SplicePredictionTrack extends TrackBase {
         ctx.font = "bold 10pt sans-serif"
         ctx.textAlign = "center"
 
-        for (const [i, text] of ["GAIN", "LOSS"].entries()) {
-            ctx.save()
-            ctx.translate(35, pixelHeight * (i == 0 ? 0.25 : 0.75))
+        if (this.rawOrDelta == "delta") {
+            for (const [i, text] of ["GAIN", "LOSS"].entries()) {
+                ctx.save()
+                ctx.translate(35, pixelHeight * (i == 0 ? 0.25 : 0.75))
+                ctx.rotate(-Math.PI / 2)
+                ctx.fillText(text, 0, 0)
+                ctx.restore()
+            }
+            ctx.translate(15, pixelHeight * 0.5)
             ctx.rotate(-Math.PI/2)
-            ctx.fillText(text, 0, 0)
-            ctx.restore()
+            ctx.font = "12pt sans-serif"
+            ctx.fillText("Δ score", 0, 0)
+        } else {
+            ctx.translate(15, pixelHeight * 0.5)
+            ctx.rotate(-Math.PI/2)
+            ctx.font = "12pt sans-serif"
+            ctx.fillText("raw score", 0, 0)
         }
-        ctx.translate(15, pixelHeight * 0.5)
-        ctx.rotate(-Math.PI/2)
-        ctx.font = "12pt sans-serif"
-        ctx.fillText("Δ score", 0, 0)
+
     }
 
     init(config) {
@@ -82,7 +93,7 @@ class SplicePredictionTrack extends TrackBase {
 
     async getFeatures(chr, start, end, bpPerPixel) {
         return this.features.filter(feature => feature.chr === chr && feature.start <= end && feature.end >= start)
-    };
+    }
 
 
     /**
@@ -94,15 +105,19 @@ class SplicePredictionTrack extends TrackBase {
      */
     computePixelHeight(features) {
         return this.height
-    };
+    }
 
-    drawLine(ctx, x0, y0, x1, y1, lineWidth, color) {
+    drawLine(ctx, x0, y0, x1, y1, lineWidth, color, dashed) {
         ctx.lineWidth = lineWidth
         ctx.strokeStyle = color
         ctx.beginPath()
         ctx.moveTo(x0, y0)
+        if (dashed) {
+            ctx.setLineDash([3, 4])
+        } else {
+            ctx.setLineDash([])
+        }
         ctx.lineTo(x1, y1)
-        //ctx.closePath()
         ctx.stroke()
     }
 
@@ -142,28 +157,38 @@ class SplicePredictionTrack extends TrackBase {
                 'fillStyle': "rgb(255, 255, 255)"})
         }
 
-        //horizontal line at 0
-        this.drawLine(ctx, 0, pixelHeight / 2, pixelWidth, pixelHeight / 2, 0.5, "#777777")
+        if (this.rawOrDelta == "delta") {
+            //horizontal line at 0
+            this.drawLine(ctx, 0, pixelHeight / 2, pixelWidth, pixelHeight / 2, 0.5, "#777777", false)
+        } else {
+            //horizontal lines at 0.2, 0.5, 0.8
+            this.drawLine(ctx, 0, 0, pixelWidth, 0, 0.5, "#777777", false)
+            this.drawLine(ctx, 0, pixelHeight, pixelWidth, pixelHeight, 0.5, "#777777", false)
+            this.drawLine(ctx, 0, pixelHeight * 0.2, pixelWidth, pixelHeight * 0.2, 0.5, RED, true)
+            this.drawLine(ctx, 0, pixelHeight * 0.5, pixelWidth, pixelHeight * 0.5, 0.5, YELLOW, true)
+            this.drawLine(ctx, 0, pixelHeight * 0.8, pixelWidth, pixelHeight * 0.8, 0.5, GREEN, true)
+        }
+
 
         const threshold = 0.01
+
         if (options.features) {
             for (let feature of options.features) {
                 const bpEnd = bpStart + pixelWidth * options.bpPerPixel + 1
-                if (feature.end < bpStart) continue
-                if (feature.start > bpEnd) break
+                if (feature.end < bpStart || feature.start > bpEnd) continue
                 if (Math.abs(feature.AA - feature.RA) >= threshold) {
-                    this.renderSplicePredictionScore(feature, options, feature.AA - feature.RA, "A")
+                    this.renderScore(feature, options, feature.RA, feature.AA, "A")
                 }
                 if (Math.abs(feature.AD - feature.RD) >= threshold) {
-                    this.renderSplicePredictionScore(feature, options, feature.AD - feature.RD, "D")
+                    this.renderScore(feature, options, feature.RD, feature.AD, "D")
                 }
             }
-
         } else {
             console.log("No feature list")
         }
 
-    };
+    }
+
 
     /**
      * @param feature  feature to render
@@ -171,7 +196,8 @@ class SplicePredictionTrack extends TrackBase {
      * @param score  delta score
      * @param AorD  "A" for splice acceptor, "D" for splice donor
      */
-    renderSplicePredictionScore(feature, options, score, AorD) {
+    renderScore(feature, options, refScore, altScore, AorD) {
+        const score = altScore - refScore
         const ctx = options.context
         const bpPerPixel = options.bpPerPixel
         const bpStart = options.bpStart
@@ -182,24 +208,6 @@ class SplicePredictionTrack extends TrackBase {
 
         const sign = score < 0 ? -1 : 1
 
-        let color
-        if (Math.abs(score) >= 0.8) {
-            color = RED
-        } else if (Math.abs(score) >= 0.5) {
-            color = YELLOW
-        } else if (Math.abs(score) >= 0.2) {
-            color = GREEN
-        } else {
-            color = "#AAAAAA"
-        }
-
-        const scaledScore = score * 0.7
-        const xPixel = (feature.start - bpStart - 0.5) / bpPerPixel
-        const yPixel = pixelHeight * (1 - scaledScore) / 2
-
-        // draw vertical bar
-        this.drawLine(ctx, xPixel, pixelHeight / 2, xPixel, yPixel, 10, color)
-
         // draw "A" or "D" label
         let rotation
         if (sign > 0) {
@@ -207,10 +215,86 @@ class SplicePredictionTrack extends TrackBase {
         } else {
             rotation = AorD == "A" ? Math.PI : Math.PI / 2
         }
-        this.drawText(ctx, AorD, xPixel, yPixel - sign * pixelHeight * 0.05, "black", 10, true, rotation)
 
-        // draw score label
-        this.drawText(ctx, Math.abs(score).toFixed(2), xPixel, yPixel - sign * pixelHeight * 0.12, "black", 9, 0)
+        const xPixel = (feature.start - bpStart - 0.5) / bpPerPixel
+        const textMeasure = ctx.measureText("A")
+        const labelHeight = (textMeasure.fontBoundingBoxAscent + textMeasure.fontBoundingBoxDescent) / 2
+        if (this.rawOrDelta == "delta") {
+            let color
+            if (Math.abs(score) >= 0.8) {
+                color = RED
+            } else if (Math.abs(score) >= 0.5) {
+                color = YELLOW
+            } else if (Math.abs(score) >= 0.2) {
+                color = GREEN
+            } else {
+                color = "#AAAAAA"
+            }
+
+            const scaledScore = score * 0.65    // rescale the score range to provide room for labels
+            const yPixel = pixelHeight * (1 - scaledScore) / 2
+
+            // draw vertical bar
+            const lineWidth = Math.max(0.5, 1/bpPerPixel)
+            this.drawLine(ctx, xPixel, pixelHeight / 2, xPixel, yPixel, lineWidth, color, false)
+            // draw "A" or "D" label
+            this.drawText(ctx, AorD, xPixel, yPixel - sign * 1.5 * labelHeight, "black", 10, lineWidth > 1, rotation)
+            // draw score
+            const scoreLabel = parseFloat(Math.abs(score).toFixed(2))
+            this.drawText(ctx, scoreLabel, xPixel, yPixel - sign * 2 * labelHeight * 2, "black", 9, 0)
+
+        } else {
+            const yPixelValues = []
+            for (const [i, score] of [altScore, refScore].entries()) {
+
+                const yPixelMargin = labelHeight
+                let yPixel = pixelHeight * (1 - score)
+                if (yPixel > pixelHeight - yPixelMargin) {
+                    yPixel = pixelHeight - yPixelMargin
+                }
+                if (yPixel < yPixelMargin) {
+                    yPixel = yPixelMargin
+                }
+
+                let color
+                if (i == 1) {
+                    color = "#0000B4"
+
+                    // draw ref score
+                    const scoreLabel = parseFloat(Math.abs(score).toFixed(2))
+                    const yPixelScoreLabel = yPixel - (refScore > 0.5 ? -1 : 1) * 1.3 * labelHeight * 2
+                    this.drawText(ctx, scoreLabel, xPixel, yPixelScoreLabel, color, 9, 0)
+
+                    yPixelValues.push(
+                        Math.abs(yPixelValues[0] - yPixel) < Math.abs(yPixelValues[0] - yPixelScoreLabel) ?
+                            yPixel : yPixelScoreLabel)
+
+                } else {
+                    color = "#05d0d2"
+
+                    yPixelValues.push(yPixel)
+                }
+
+                const labelsOverlap = yPixelValues.length >= 2 && (Math.abs(yPixelValues[0] - yPixelValues[1]) < 10)
+
+                if (i == 1 && !labelsOverlap) {
+                    // draw vertical line
+                    const lineWidth = 1
+                    this.drawLine(
+                        ctx,
+                        xPixel,
+                        Math.min(yPixelValues[0], yPixelValues[1]) + labelHeight * 1.3,
+                        xPixel, Math.max(yPixelValues[0], yPixelValues[1]) - labelHeight * 1.3,
+                        lineWidth,
+                        color,
+                        true)
+                }
+                // draw "A" or "D" label
+                this.drawText(ctx, AorD, xPixel + ((i == 1 && labelsOverlap) ? 2 : 0), yPixel, color, 10, true, rotation)
+
+            }
+
+        }
 
     }
 
