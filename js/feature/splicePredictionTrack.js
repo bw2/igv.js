@@ -37,8 +37,9 @@ class SplicePredictionTrack extends TrackBase {
     constructor(config, browser) {
         super(config, browser)
 
+        this.tool = config.tool || "spliceai"
         this.rawOrDelta = config.rawOrDelta || "delta"
-
+        this.strand = config.strand || "+"
         this.paintAxis = this.paintAxisCustom
         this.dataRange = this.rawOrDelta === "delta" ? {
             min: -1,
@@ -67,7 +68,7 @@ class SplicePredictionTrack extends TrackBase {
             ctx.translate(15, pixelHeight * 0.5)
             ctx.rotate(-Math.PI/2)
             ctx.font = "12pt sans-serif"
-            ctx.fillText("Δ score", 0, 0)
+            ctx.fillText(`${this.name}: Δ score`, 0, 0)
         } else {
             ctx.translate(15, pixelHeight * 0.5)
             ctx.rotate(-Math.PI/2)
@@ -176,11 +177,25 @@ class SplicePredictionTrack extends TrackBase {
             for (let feature of options.features) {
                 const bpEnd = bpStart + pixelWidth * options.bpPerPixel + 1
                 if (feature.end < bpStart || feature.start > bpEnd) continue
-                if (Math.abs(feature.AA - feature.RA) >= threshold) {
-                    this.renderScore(feature, options, feature.RA, feature.AA, "A")
-                }
-                if (Math.abs(feature.AD - feature.RD) >= threshold) {
-                    this.renderScore(feature, options, feature.RD, feature.AD, "D")
+                if (this.tool == "spliceai") {
+                    if ((this.rawOrDelta == "delta") && (Math.abs(feature.AA - feature.RA) >= threshold) ||
+                        (this.rawOrDelta != "delta") && (Math.abs(feature.AA) >= threshold || Math.abs(feature.RA) >= threshold)) {
+                        //render acceptor score
+                        this.renderScore(feature, options, feature.RA, feature.AA, "A")
+                    }
+                    if ((this.rawOrDelta == "delta") && (Math.abs(feature.AD - feature.RD) >= threshold) ||
+                        (this.rawOrDelta != "delta") && (Math.abs(feature.AD) >= threshold || Math.abs(feature.RD) >= threshold)) {
+                        //render donor score
+                        this.renderScore(feature, options, feature.RD, feature.AD, "D")
+                    }
+                } else if ((this.tool == "pangolin") && (this.rawOrDelta == "delta")) {
+                    if (feature.SL_ALT - feature.SL_REF <= -threshold) {
+                        //render splice loss score
+                        this.renderScore(feature, options, feature.SL_REF, feature.SL_ALT, "P")
+                    } else if (feature.SG_ALT - feature.SG_REF >= threshold) {
+                        //render splice gain score
+                        this.renderScore(feature, options, feature.SG_REF, feature.SG_ALT, "P")
+                    }
                 }
             }
         } else {
@@ -194,14 +209,14 @@ class SplicePredictionTrack extends TrackBase {
      * @param feature  feature to render
      * @param options  track options
      * @param score  delta score
-     * @param AorD  "A" for splice acceptor, "D" for splice donor
+     * @param AorDorP  "A" for splice acceptor, "D" for splice donor
      */
-    renderScore(feature, options, refScore, altScore, AorD) {
+    renderScore(feature, options, refScore, altScore, AorDorP) {
         const score = altScore - refScore
         const ctx = options.context
         const bpPerPixel = options.bpPerPixel
         const bpStart = options.bpStart
-        const pixelWidth = options.pixelWidth
+        //const pixelWidth = options.pixelWidth
         const pixelHeight = options.pixelHeight
         ///const bpEnd = bpStart + pixelWidth * bpPerPixel + 1
 
@@ -209,11 +224,11 @@ class SplicePredictionTrack extends TrackBase {
         const sign = score < 0 ? -1 : 1
 
         // draw "A" or "D" label
-        let rotation
+        let rotation = 0
         if (sign > 0) {
-            rotation = AorD == "A" ? 0 : -Math.PI / 2
+            rotation = AorDorP == "A" ? 0 : -Math.PI / 2
         } else {
-            rotation = AorD == "A" ? Math.PI : Math.PI / 2
+            rotation = AorDorP == "A" ? Math.PI : Math.PI / 2
         }
 
         const xPixel = (feature.start - bpStart - 0.5) / bpPerPixel
@@ -238,9 +253,9 @@ class SplicePredictionTrack extends TrackBase {
             const lineWidth = Math.max(0.5, 1/bpPerPixel)
             this.drawLine(ctx, xPixel, pixelHeight / 2, xPixel, yPixel, lineWidth, color, false)
             // draw "A" or "D" label
-            this.drawText(ctx, AorD, xPixel, yPixel - sign * 1.5 * labelHeight, "black", 10, lineWidth > 1, rotation)
+            this.drawText(ctx, AorDorP, xPixel, yPixel - sign * 1.5 * labelHeight, "black", 10, lineWidth > 1, rotation)
             // draw score
-            const scoreLabel = parseFloat(Math.abs(score).toFixed(2))
+            const scoreLabel = parseFloat(this.tool == "pangolin" ? score.toFixed(2) : Math.abs(score).toFixed(2))
             this.drawText(ctx, scoreLabel, xPixel, yPixel - sign * 2 * labelHeight * 2, "black", 9, 0)
 
         } else {
@@ -290,7 +305,7 @@ class SplicePredictionTrack extends TrackBase {
                         true)
                 }
                 // draw "A" or "D" label
-                this.drawText(ctx, AorD, xPixel + ((i == 1 && labelsOverlap) ? 2 : 0), yPixel, color, 10, true, rotation)
+                this.drawText(ctx, AorDorP, xPixel + ((i == 1 && labelsOverlap) ? 2 : 0), yPixel, color, 10, true, rotation)
 
             }
 
