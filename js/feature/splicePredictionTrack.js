@@ -71,12 +71,12 @@ class SplicePredictionTrack extends TrackBase {
             ctx.translate(15, pixelHeight * 0.5)
             ctx.rotate(-Math.PI/2)
             ctx.font = "12pt sans-serif"
-            ctx.fillText(`${this.tool}: Δ score`, 0, 0)
+            ctx.fillText(`${this.tool}: Δ`, 0, 0)
         } else {
             ctx.translate(15, pixelHeight * 0.5)
             ctx.rotate(-Math.PI/2)
             ctx.font = "12pt sans-serif"
-            ctx.fillText("raw score", 0, 0)
+            ctx.fillText(`${this.tool}: raw`, 0, 0)
         }
 
     }
