@@ -32,12 +32,15 @@ const GREEN = "#1fb839"
 const YELLOW = "#FFCB1F"
 const RED = "#FF0000"
 
+const REFERENCE_SCORE_COLOR = "#0000B4"
+const ALTERNATE_SCORE_COLOR = "#05d0d2"
+
 class SplicePredictionTrack extends TrackBase {
 
     constructor(config, browser) {
         super(config, browser)
 
-        this.tool = config.tool || "spliceai"
+        this.tool = config.tool || "SpliceAI"
         this.rawOrDelta = config.rawOrDelta || "delta"
         this.strand = config.strand || "+"
         this.paintAxis = this.paintAxisCustom
@@ -68,7 +71,7 @@ class SplicePredictionTrack extends TrackBase {
             ctx.translate(15, pixelHeight * 0.5)
             ctx.rotate(-Math.PI/2)
             ctx.font = "12pt sans-serif"
-            ctx.fillText(`${this.name}: Δ score`, 0, 0)
+            ctx.fillText(`${this.tool}: Δ score`, 0, 0)
         } else {
             ctx.translate(15, pixelHeight * 0.5)
             ctx.rotate(-Math.PI/2)
@@ -177,7 +180,7 @@ class SplicePredictionTrack extends TrackBase {
             for (let feature of options.features) {
                 const bpEnd = bpStart + pixelWidth * options.bpPerPixel + 1
                 if (feature.end < bpStart || feature.start > bpEnd) continue
-                if (this.tool == "spliceai") {
+                if (this.tool.toLowerCase() == "spliceai") {
                     if ((this.rawOrDelta == "delta") && (Math.abs(feature.AA - feature.RA) >= threshold) ||
                         (this.rawOrDelta != "delta") && (Math.abs(feature.AA) >= threshold || Math.abs(feature.RA) >= threshold)) {
                         //render acceptor score
@@ -188,7 +191,7 @@ class SplicePredictionTrack extends TrackBase {
                         //render donor score
                         this.renderScore(feature, options, feature.RD, feature.AD, "D")
                     }
-                } else if ((this.tool == "pangolin") && (this.rawOrDelta == "delta")) {
+                } else if ((this.tool.toLowerCase() == "pangolin") && (this.rawOrDelta == "delta")) {
                     if (feature.SL_ALT - feature.SL_REF <= -threshold) {
                         //render splice loss score
                         this.renderScore(feature, options, feature.SL_REF, feature.SL_ALT, "P")
@@ -201,7 +204,6 @@ class SplicePredictionTrack extends TrackBase {
         } else {
             console.log("No feature list")
         }
-
     }
 
 
@@ -255,7 +257,7 @@ class SplicePredictionTrack extends TrackBase {
             // draw "A" or "D" label
             this.drawText(ctx, AorDorP, xPixel, yPixel - sign * 1.5 * labelHeight, "black", 10, lineWidth > 1, rotation)
             // draw score
-            const scoreLabel = parseFloat(this.tool == "pangolin" ? score.toFixed(2) : Math.abs(score).toFixed(2))
+            const scoreLabel = parseFloat(this.tool.toLowerCase() == "pangolin" ? score.toFixed(2) : Math.abs(score).toFixed(2))
             this.drawText(ctx, scoreLabel, xPixel, yPixel - sign * 2 * labelHeight * 2, "black", 9, 0)
 
         } else {
@@ -273,7 +275,7 @@ class SplicePredictionTrack extends TrackBase {
 
                 let color
                 if (i == 1) {
-                    color = "#0000B4"
+                    color = REFERENCE_SCORE_COLOR
 
                     // draw ref score
                     const scoreLabel = parseFloat(Math.abs(score).toFixed(2))
@@ -285,7 +287,7 @@ class SplicePredictionTrack extends TrackBase {
                             yPixel : yPixelScoreLabel)
 
                 } else {
-                    color = "#05d0d2"
+                    color = ALTERNATE_SCORE_COLOR
 
                     yPixelValues.push(yPixel)
                 }
