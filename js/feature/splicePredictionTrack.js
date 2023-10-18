@@ -149,6 +149,10 @@ class SplicePredictionTrack extends TrackBase {
         }
     }
 
+    round(value, decimals = 2) {
+        return parseFloat(parseFloat(value).toFixed(decimals))
+    }
+
 
     draw(options) {
         const ctx = options.context
@@ -181,21 +185,21 @@ class SplicePredictionTrack extends TrackBase {
                 const bpEnd = bpStart + pixelWidth * options.bpPerPixel + 1
                 if (feature.end < bpStart || feature.start > bpEnd) continue
                 if (this.tool.toLowerCase() == "spliceai") {
-                    if ((this.rawOrDelta == "delta") && (Math.abs(feature.AA - feature.RA) >= threshold) ||
-                        (this.rawOrDelta != "delta") && (Math.abs(feature.AA) >= threshold || Math.abs(feature.RA) >= threshold)) {
+                    if ((this.rawOrDelta == "delta") && (Math.abs(this.round(feature.AA - feature.RA)) >= threshold) ||
+                        (this.rawOrDelta != "delta") && (Math.abs(this.round(feature.AA)) >= threshold || Math.abs(this.round(feature.RA)) >= threshold)) {
                         //render acceptor score
                         this.renderScore(feature, options, feature.RA, feature.AA, "A")
                     }
-                    if ((this.rawOrDelta == "delta") && (Math.abs(feature.AD - feature.RD) >= threshold) ||
-                        (this.rawOrDelta != "delta") && (Math.abs(feature.AD) >= threshold || Math.abs(feature.RD) >= threshold)) {
+                    if ((this.rawOrDelta == "delta") && (Math.abs(this.round(feature.AD - feature.RD)) >= threshold) ||
+                        (this.rawOrDelta != "delta") && (Math.abs(this.round(feature.AD)) >= threshold || Math.abs(this.round(feature.RD)) >= threshold)) {
                         //render donor score
                         this.renderScore(feature, options, feature.RD, feature.AD, "D")
                     }
                 } else if ((this.tool.toLowerCase() == "pangolin") && (this.rawOrDelta == "delta")) {
-                    if (feature.SL_ALT - feature.SL_REF <= -threshold) {
+                    if (this.round(feature.SL_ALT - feature.SL_REF) <= -threshold) {
                         //render splice loss score
                         this.renderScore(feature, options, feature.SL_REF, feature.SL_ALT, "P")
-                    } else if (feature.SG_ALT - feature.SG_REF >= threshold) {
+                    } else if (this.round(feature.SG_ALT - feature.SG_REF) >= threshold) {
                         //render splice gain score
                         this.renderScore(feature, options, feature.SG_REF, feature.SG_ALT, "P")
                     }
@@ -214,7 +218,7 @@ class SplicePredictionTrack extends TrackBase {
      * @param AorDorP  "A" for splice acceptor, "D" for splice donor
      */
     renderScore(feature, options, refScore, altScore, AorDorP) {
-        const score = altScore - refScore
+        const score = this.round(altScore - refScore)
         const ctx = options.context
         const bpPerPixel = options.bpPerPixel
         const bpStart = options.bpStart
