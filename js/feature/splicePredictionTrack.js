@@ -237,7 +237,8 @@ class SplicePredictionTrack extends TrackBase {
             rotation = AorDorP == "A" ? Math.PI : Math.PI / 2
         }
 
-        const xPixel = (feature.start - bpStart - 0.5) / bpPerPixel
+        const shift = AorDorP == "D" ? 1 : (AorDorP == "P" ? 0.5 : 0)
+        const xPixel = (feature.start - bpStart - shift) / bpPerPixel
         const textMeasure = ctx.measureText("A")
         const labelHeight = (textMeasure.fontBoundingBoxAscent + textMeasure.fontBoundingBoxDescent) / 2
         if (this.rawOrDelta == "delta") {
