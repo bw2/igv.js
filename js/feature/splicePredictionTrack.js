@@ -237,7 +237,17 @@ class SplicePredictionTrack extends TrackBase {
             rotation = AorDorP == "A" ? Math.PI : Math.PI / 2
         }
 
-        const shift = AorDorP == "D" ? (this.strand == "-" ? 1 : 0) : (AorDorP == "P" ? 0.5 : 0)
+        let shift = 0
+        if (AorDorP == "D") {
+            shift = this.strand == "-" ? 1 : 0
+        } else if (AorDorP == "A") {
+            shift = this.strand == "-" ? 0 : 1
+        } else if (AorDorP == "P") {
+            shift = 0.5
+        } else {
+            console.error(`Unexpected value for AorDorP arg: ${AorDorP}`)
+        }
+
         const xPixel = (feature.start - bpStart - shift) / bpPerPixel
         const textMeasure = ctx.measureText("A")
         const labelHeight = (textMeasure.fontBoundingBoxAscent + textMeasure.fontBoundingBoxDescent) / 2
